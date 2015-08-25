@@ -1,7 +1,7 @@
-/* 
+/*
  * The contents of this file are subject to the Terracotta Public License Version
  * 2.0 (the "License"); You may not use this file except in compliance with the
- * License. You may obtain a copy of the License at 
+ * License. You may obtain a copy of the License at
  *
  *      http://terracotta.org/legal/terracotta-public-license.
  *
@@ -11,7 +11,7 @@
  *
  * The Covered Software is Terracotta Platform.
  *
- * The Initial Developer of the Covered Software is 
+ * The Initial Developer of the Covered Software is
  *      Terracotta, Inc., a Software AG company
  */
 package com.tc.cli;
@@ -26,6 +26,8 @@ import com.tc.config.schema.setup.ConfigurationSetupManagerFactory;
 import com.tc.config.schema.setup.FatalIllegalConfigurationChangeHandler;
 import com.tc.config.schema.setup.L2ConfigurationSetupManager;
 import com.tc.config.schema.setup.StandardConfigurationSetupManagerFactory;
+import com.tc.logging.CustomerLogging;
+import com.tc.logging.TCLogger;
 import com.tc.object.config.schema.L2DSOConfigObject;
 import com.terracottatech.config.Server;
 import com.terracottatech.config.TcConfigDocument;
@@ -52,6 +54,8 @@ import javax.ws.rs.client.WebTarget;
  * @author tim
  */
 public abstract class ManagementToolUtil {
+  private static final TCLogger consoleLogger           = CustomerLogging.getConsoleLogger();
+
   private static final String DEFAULT_HOST = "localhost";
   private static final int DEFAULT_PORT = 9540;
   private static final int DEFAULT_TSA_PORT = 9510;
@@ -129,7 +133,7 @@ public abstract class ManagementToolUtil {
     boolean secured = isSecured(commandLineBuilder);
     boolean ignoreUntrusted = isIgnoreUntrustedCerts(commandLineBuilder);
 
-    if (commandLineBuilder.hasOption('f')) {
+    if (commandLineBuilder.hasOption('f') || commandLineBuilder.hasOption('n')) {
       if (allFromConfigs) {
         targets.addAll(getAllTargetsForConfig(commandLineBuilder.getOptionValue("f"), username, password, secured, ignoreUntrusted));
       } else {
@@ -192,13 +196,17 @@ public abstract class ManagementToolUtil {
   private static WebTarget getTargetsForConfig(String file, String serverName, String username, String password, boolean secured,
                                                            boolean ignoreUntrusted)
       throws ConfigurationSetupException, NoSuchAlgorithmException, KeyManagementException {
-    String[] args;
-    if (serverName != null) {
-      args = new String[] { "-f", file, "-n", serverName };
-    } else {
-      args = new String[] { "-f", file };
+    ArrayList<String> args = new ArrayList<String>();
+    if (file != null) {
+      args.add("-f");
+      args.add(file);
     }
-    ConfigurationSetupManagerFactory factory = new StandardConfigurationSetupManagerFactory(args,
+    if (serverName != null) {
+      args.add("-n");
+      args.add(serverName);
+    }
+    ConfigurationSetupManagerFactory factory = new StandardConfigurationSetupManagerFactory(
+                                                                                            args.toArray(new String[0]),
         StandardConfigurationSetupManagerFactory.ConfigMode.L2, new FatalIllegalConfigurationChangeHandler(), null);
     L2ConfigurationSetupManager l2TVSConfigurationSetupManager = factory.createL2TVSConfigurationSetupManager(null, false);
 
@@ -280,13 +288,16 @@ public abstract class ManagementToolUtil {
 
     TrustManager[] trustAllCerts = new TrustManager[] {
         new X509TrustManager() {
+          @Override
           public java.security.cert.X509Certificate[] getAcceptedIssuers() {
             return null;
           }
 
+          @Override
           public void checkClientTrusted(X509Certificate[] certs, String authType) {
           }
 
+          @Override
           public void checkServerTrusted(X509Certificate[] certs, String authType) {
           }
         }
@@ -296,6 +307,7 @@ public abstract class ManagementToolUtil {
     sc.init(null, trustAllCerts, null);
     builder.sslContext(sc);
     builder.hostnameVerifier(new HostnameVerifier() {
+      @Override
       public boolean verify(String hostname, SSLSession session) {
         return true;
       }
